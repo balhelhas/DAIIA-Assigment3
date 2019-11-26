@@ -11,7 +11,7 @@ global {
 	rgb wandering_color <- #gray;
 	float guests_speed <-  0.5;
 	
-	int number_of_stages <- 5;
+	int number_of_stages <- 3;
 	int stage_size_min <- 4;
 	int stage_size_max <- 6;
 	int stage_util_min <- 1;
@@ -108,6 +108,10 @@ species Guest skills: [moving]{
 				high_util <- stage_utils[u];
 				stage <- u;
 			}
+		}
+		
+		if(picked_stage != nil and picked_stage != stages[stage]){
+			remove self from: picked_stage.crowd;
 		}
 		
 		picked_stage <- stages[stage];
