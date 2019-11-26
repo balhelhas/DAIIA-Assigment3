@@ -61,7 +61,8 @@ species Guest skills: [moving]{
 		do wander;
 	}
 	
-	reflex calculate_my_utils when: picked_stage = nil {
+	//Constatly calculating utilities for the stages
+	reflex calculate_my_utils {
 		if(!empty(stages)) {
 			loop s from: 0 to: length(stages)-1 {
 				//Get the index stage on list of stages
@@ -95,10 +96,9 @@ species Guest skills: [moving]{
 		}
 	}
 	
-	
+	//Once all utilities are calculate pick the stage with the highest utility
 	reflex pick_stage when: !empty(stages) and !empty(stage_utils) 
-					  		and length(stages) = length(stage_utils) 
-					  		and picked_stage = nil {	
+					  		and length(stages) = length(stage_utils) {	
 		
 		float high_util <- 0.0;
 		int stage;
@@ -114,7 +114,6 @@ species Guest skills: [moving]{
 		my_color <- picked_stage.color;
 		add self to: picked_stage.crowd;
 		
-		write name + " I picked the " + picked_stage + "! Utility: " + high_util;
 	}
 	
 	reflex go_to_stage when: picked_stage != nil {
@@ -131,24 +130,27 @@ species Guest skills: [moving]{
 
 species Stage {
 	int size <- rnd(stage_size_min, stage_size_max);
-	rgb color <- stage_colors[rnd(length(stage_colors) - 1)];
-	string genre <- music_genres[rnd(length(music_genres) - 1)];
-	
-	bool show_expired <- false;
-	float start_time <- time;
+	rgb color;
+	string genre;
 	
 	// For how long the show will run
+	float start_time;
 	int show_duration <- rnd(show_duration_min, show_duration_max);
 	
 	// Stage utilities to calculate guest utility when deciding to which stage to go
-	int util_lights <- rnd(stage_util_min,stage_util_max);
-	int util_music <- rnd(stage_util_min,stage_util_max);
-	int	util_show <- rnd(stage_util_min,stage_util_max);
-	int util_decor <- rnd(stage_util_min,stage_util_max);
-	int util_artists <- rnd(stage_util_min,stage_util_max);
+	int util_lights;
+	int util_music;
+	int	util_show;
+	int util_decor;
+	int util_artists;
 	
 	// Record of the crowd of the stage
 	list<Guest> crowd <-[];
+	
+	init {
+		do set_utilities;
+		write name+"'s will start a show of "+ genre;
+	}
 	
 	aspect default {
 		draw cylinder(size, 0.1) color: color at: location;
@@ -159,18 +161,25 @@ species Stage {
 		write name + "'s " + genre + " show has finished";	
 		int stage_index <- stages index_of self;
 		
-		loop guest over: Guest {
-			remove index: stage_index from: guest.stage_utils;
-		}
+		do set_utilities;
 		
-		loop guest over: crowd {
-			guest.my_color <- wandering_color;
-			guest.picked_stage <- nil;
-		}
-		
-		remove index: stage_index from: stages;
-		
-		do die;
+		write name+"'s will start a new show of "+ genre;
+	}
+	
+	action set_utilities {
+		color <- stage_colors[rnd(length(stage_colors) - 1)];
+		genre <- music_genres[rnd(length(music_genres) - 1)];
+	
+		// For how long the show will run
+		start_time <- time;
+		show_duration <- rnd(show_duration_min, show_duration_max);
+	
+		// Stage utilities to calculate guest utility when deciding to which stage to go
+		util_lights <- rnd(stage_util_min,stage_util_max);
+		util_music <- rnd(stage_util_min,stage_util_max);
+		util_show <- rnd(stage_util_min,stage_util_max);
+		util_decor <- rnd(stage_util_min,stage_util_max);
+		util_artists <- rnd(stage_util_min,stage_util_max);
 	}
 }
 
