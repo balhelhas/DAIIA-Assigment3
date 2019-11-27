@@ -102,6 +102,7 @@ species Guest skills: [moving]{
 		
 		float high_util <- 0.0;
 		int stage;
+		Stage prev_stage <- picked_stage;
 		
 		loop u from: 0 to: length(stage_utils)-1 {
 			if(stage_utils[u] >= high_util) {
@@ -118,6 +119,9 @@ species Guest skills: [moving]{
 		my_color <- picked_stage.color;
 		add self to: picked_stage.crowd;
 		
+		if (prev_stage != picked_stage){
+			write "Guest " + name + " has max utilities (" + round(high_util) + ") for stage " + picked_stage.name;
+		}
 	}
 	
 	reflex go_to_stage when: picked_stage != nil {
