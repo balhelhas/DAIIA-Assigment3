@@ -19,23 +19,20 @@ global {
 	int show_duration_min <- 200;
 	int show_duration_max <- 500;
 	
-	list<rgb> stage_colors <- [#blue,#yellow,#green,#red,#purple];
-	list<string> music_genres <- ["country","electronic","blues","rock","hip-hop","pop","jazz"];
-	
-	list<Stage> stages <- [];
+	list<rgb> stage_colors <- [#blue, #yellow, #green, #red, #purple, #pink, #orange, #black, #brown, #cyan];
+	list<string> music_genres <- ["country", "electro", "blues", "rock", "hip-hop", "pop", "jazz"];
 	
 	init {
 		create Guest number: number_of_guests;
-		create Stage number: number_of_stages {
-			add self to: stages;
-		}
+		create Stage number: number_of_stages;
 	}
 }
 
 /* Insert your model definition here */
-species Guest skills: [moving]{
+species Guest skills: [moving, fipa]{
 	
 	rgb my_color <- wandering_color;
+	float actual_utility <- 0.0;
 	
 	list<float> stage_utils <- [];
 	
@@ -61,69 +58,44 @@ species Guest skills: [moving]{
 		do wander;
 	}
 	
-	//Constatly calculating utilities for the stages
-	reflex calculate_my_utils {
-		if(!empty(stages)) {
-			loop s from: 0 to: length(stages)-1 {
-				//Get the index stage on list of stages
-				Stage stage <- stages[s];
-				
+	reflex pick_stage when: !empty(cfps){
+		message request <- cfps at 0;
+		loop request over: cfps {
+			if (request.contents[0] = 'Start') {
 				//Calculate utility for the stage
-				float utility <- stage.util_lights * my_util_lights +
-								 stage.util_music * my_util_music +
-								 stage.util_show * my_util_show +
-								 stage.util_decor * my_util_decor +
-								 stage.util_artists * my_util_artists;
+				float utility <- float(request.contents[2]) * my_util_lights + 
+								 float(request.contents[3]) * my_util_music +
+								 float(request.contents[4]) * my_util_show +
+								 float(request.contents[5]) * my_util_decor +
+								 float(request.contents[6]) * my_util_artists;
 				
 				//If the stage genre if the same as the prefered genre of guest multiply by bias
-				if(stage.genre = my_genre) {
+				if(request.contents[1] = my_genre) {
 					utility <- utility * bias_genre;
 				}
 				
 				//If crowd size is smaller than the prefered crowd multiply by bias
-				if(length(stage.crowd) <= my_crowd_size) {
+				if(length(Stage(request.sender).crowd) <= my_crowd_size) {
 					utility <- utility * bias_crowd_size;
 				}
 				
-				if( length(stage_utils) != length(stages)){
-					add utility to: stage_utils;
-				} else {
-					put utility at: s in: self.stage_utils;	
+				// check if it's a better utility and change stage
+				if (utility > actual_utility){
+					picked_stage <- request.sender;
+					my_color <- picked_stage.color;
+					write "Guest " + name + " has max utilities (" + round(utility) + ";" + round(actual_utility) +") for stage " 
+						+ picked_stage.name + "(" + picked_stage.color + ")";
+					actual_utility <- utility;
+					add self to: picked_stage.crowd;
 				}
-			}
-		} else {
-			stage_utils <- [];
+			} else if (request.contents[0] = 'Stop'){
+				actual_utility <- 0.0;
+				my_color <- wandering_color;
+				picked_stage <- nil;
+			}	
 		}
 	}
-	
-	//Once all utilities are calculate pick the stage with the highest utility
-	reflex pick_stage when: !empty(stages) and !empty(stage_utils) 
-					  		and length(stages) = length(stage_utils) {	
 		
-		float high_util <- 0.0;
-		int stage;
-		Stage prev_stage <- picked_stage;
-		
-		loop u from: 0 to: length(stage_utils)-1 {
-			if(stage_utils[u] >= high_util) {
-				high_util <- stage_utils[u];
-				stage <- u;
-			}
-		}
-		
-		if(picked_stage != nil and picked_stage != stages[stage]){
-			remove self from: picked_stage.crowd;
-		}
-		
-		picked_stage <- stages[stage];
-		my_color <- picked_stage.color;
-		add self to: picked_stage.crowd;
-		
-		if (prev_stage != picked_stage){
-			write "Guest " + name + " has max utilities (" + round(high_util) + ") for stage " + picked_stage.name;
-		}
-	}
-	
 	reflex go_to_stage when: picked_stage != nil {
 		if(location distance_to(picked_stage) > (picked_stage.size + 5)) {
 			do goto target:{picked_stage.location.x + 5, picked_stage.location.y + 5} speed: guests_speed;	
@@ -134,9 +106,10 @@ species Guest skills: [moving]{
 					and location distance_to(picked_stage.location) <= picked_stage.size + 5 {
 		do wander speed: guests_speed bounds: circle(0.5);
 	}
+	
 }
 
-species Stage {
+species Stage skills: [fipa]{
 	int size <- rnd(stage_size_min, stage_size_max);
 	rgb color;
 	string genre;
@@ -157,24 +130,42 @@ species Stage {
 	
 	init {
 		do set_utilities;
-		write name+"'s will start a show of "+ genre;
+		write name+"(" + self.color + ") will start a show of "+ genre;
 	}
 	
 	aspect default {
-		draw cylinder(size, 0.1) color: color at: location;
+		draw cylinder(size, 0.1) color: self.color at: location;
 	}
 	
 	//When the show is over, remove stage from the stages list and remove stage util from the guests and reset them 
 	reflex shutdown_show when: time >= start_time + show_duration {
-		write name + "'s " + genre + " show has finished";	
-		int stage_index <- stages index_of self;
+		write "\n------------" + name + "'s(" + self.color + ") " + genre + " show has finished ----------------\n";	
+		// anounce Guests about show end
+		do start_conversation (to: list(Guest), protocol: 'fipa-propose', performative: 'cfp', contents: ['Stop']);
+		// announce Stages about show end
+		do start_conversation (to: list(Stage) - self, protocol: 'fipa-propose', performative: 'cfp', contents: ['Stop']);
 		
+		// change location when concert finished
+		self.location <- {rnd(100),rnd(100)};
 		do set_utilities;
-		
-		write name+"'s will start a new show of "+ genre;
+		write "\n------------ " + name + "(" + self.color + ") started a new show of "+ genre + "-------------\n";
 	}
 	
+	// re-announce every guest about the place in case one stage closes
+	reflex resend_data when: !empty(cfps){
+		message request <- cfps at 0;
+		if (request.contents[0] = 'Stop') {
+			// announce through FIPA the guests
+			do start_conversation (to: list(Guest), protocol: 'fipa-propose', performative: 'cfp', 
+				contents: ['Start', genre, util_lights, util_music, util_show, util_decor, util_artists, color]);
+		}
+	}
+	
+	// recreate utilities and send again message to everyone
 	action set_utilities {
+		// empty the crowd
+		crowd <- [];
+		
 		color <- stage_colors[rnd(length(stage_colors) - 1)];
 		genre <- music_genres[rnd(length(music_genres) - 1)];
 	
@@ -188,6 +179,10 @@ species Stage {
 		util_show <- rnd(stage_util_min,stage_util_max);
 		util_decor <- rnd(stage_util_min,stage_util_max);
 		util_artists <- rnd(stage_util_min,stage_util_max);
+		
+		// announce through FIPA
+		do start_conversation (to: list(Guest), protocol: 'fipa-propose', performative: 'cfp', 
+			contents: ['Start', genre, util_lights, util_music, util_show, util_decor, util_artists, color]);
 	}
 }
 
