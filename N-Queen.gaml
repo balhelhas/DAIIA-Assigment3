@@ -92,6 +92,7 @@ species queen skills: [fipa] {
 					write "I was forced";
 					do reject_proposal with: (message: proposal, contents: [self, "I CANT BE FORCED"]);
 				} else {
+					write "No";
 					do reject_proposal with: (message: proposal, contents: [self, ""]);
 				}
 			}
@@ -156,6 +157,22 @@ species queen skills: [fipa] {
 		}
 	}
 	
+	//If there are still interceptions start new force
+	reflex still_has_interceptions when: empty(proposes) and my_cell.has_intercepted_queen() {
+		map<cell,list<queen>> how_many <- my_cell.intercepted_queens();
+			
+		loop queens over: how_many {
+			if(length(queens) = 1) {
+				cell move_to <- how_many index_of queens;
+				my_cell <- move_to;
+				location <- move_to.location;
+				
+				do force_move(queens[0]);	
+				break;
+			}
+		}
+	}
+	
 	//Do a force move
 	action force_move (queen move_it) {
 		do start_conversation(
@@ -164,7 +181,6 @@ species queen skills: [fipa] {
 			performative: 'propose',
 			contents: [self, "CAN YOU FORCE MOVE"]
 		);
-		force <- false;
 	}
 }
 
