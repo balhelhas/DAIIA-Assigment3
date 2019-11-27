@@ -10,7 +10,7 @@ model NQueen
 
 global {
 	
-	int n_queens <- 4;
+	int n_queens <- 9;
 	int queen_number <- 0;
 	bool all_sorted <- false;
 	bool start <- true;
@@ -27,6 +27,7 @@ species queen skills: [fipa] {
 	cell my_cell;
 	bool ask <- false;
 	bool force <- false;
+	int rejection_cycle <- 0;
 	
 	init {
 		number <- queen_number;
@@ -80,7 +81,6 @@ species queen skills: [fipa] {
 			loop position over: my_cell.verticals {
 				my_cell <- position;
 				if(!my_cell.has_intercepted_queen()){
-					
 					location <- my_cell.location;
 					break;
 				}
@@ -88,10 +88,15 @@ species queen skills: [fipa] {
 			
 			if(current.location = location){
 				my_cell <- current;
-				do reject_proposal with: (message: proposal, contents: [self, ""]);
+				if(info = "CAN YOU FORCE MOVE") {
+					write "I was forced";
+					do reject_proposal with: (message: proposal, contents: [self, "I CANT BE FORCED"]);
+				} else {
+					do reject_proposal with: (message: proposal, contents: [self, ""]);
+				}
 			}
 			
-			if(info != "CAN YOU MOVE"){
+			if(info != "CAN YOU MOVE" or info = "CAN YOU FORCE MOVE"){
 				ask <- true;	
 			}
 		}
@@ -108,9 +113,6 @@ species queen skills: [fipa] {
 		//If one cycle as passed and there are still rejection do forced moves
 		if(number_of_cycle > 1) {
 			map<cell,list<queen>> how_many <- fail_queen.my_cell.intercepted_queens();
-			
-			int less;
-			queen move_queen;
 			
 			loop queens over: how_many {
 				if(length(queens) = 1) {
@@ -135,18 +137,35 @@ species queen skills: [fipa] {
 		}
 	}
 	
+	//If there are no more proposes but there is still a interception make a sneaky move
+	reflex sneaky_move when: empty(proposes) and number_of_cycle > 1 {
+		if(my_cell.has_intercepted_queen()) {
+			cell current <- my_cell;
+			
+			loop position over: my_cell.verticals {
+				my_cell <- position;
+				if(!my_cell.has_intercepted_queen()){
+					location <- my_cell.location;
+					break;
+				}
+			}
+			
+			if(current.location = location){
+				my_cell <- current;
+			}
+		}
+	}
+	
 	//Do a force move
 	action force_move (queen move_it) {
 		do start_conversation(
 			to: [move_it],
 			protocol: 'fipa-propose',
 			performative: 'propose',
-			contents: [self, ""]
+			contents: [self, "CAN YOU FORCE MOVE"]
 		);
 		force <- false;
 	}
-    
-	
 }
 
 grid cell width: n_queens height: n_queens neighbors: 4 {
