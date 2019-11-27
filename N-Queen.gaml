@@ -89,10 +89,8 @@ species queen skills: [fipa] {
 			if(current.location = location){
 				my_cell <- current;
 				if(info = "CAN YOU FORCE MOVE") {
-					write "I was forced";
 					do reject_proposal with: (message: proposal, contents: [self, "I CANT BE FORCED"]);
 				} else {
-					write "No";
 					do reject_proposal with: (message: proposal, contents: [self, ""]);
 				}
 			}
@@ -158,7 +156,7 @@ species queen skills: [fipa] {
 	}
 	
 	//If there are still interceptions start new force
-	reflex still_has_interceptions when: empty(proposes) and my_cell.has_intercepted_queen() {
+	reflex still_has_interceptions when: empty(proposes) and my_cell.has_intercepted_queen() and number_of_cycle > 1{
 		map<cell,list<queen>> how_many <- my_cell.intercepted_queens();
 			
 		loop queens over: how_many {
